@@ -1,0 +1,1331 @@
+1: Draw an ER for Bank database with atleast 5 entities and convert them into tables.
+Perform DDL on above converted tables.
+1. Create tables with all constraints
+2. Create views on any two tables using join conditions
+3. Create index called CustomerId. Entries should be in ascending order by customer name.
+4. Create sequence on Acctno.
+
+
+-- 1. Create tables with constraints
+CREATE TABLE Customer (
+    CustomerId INT PRIMARY KEY,
+    Name VARCHAR(100) NOT NULL,
+    Address VARCHAR(200),
+    Phone VARCHAR(15) UNIQUE
+);
+
+CREATE TABLE Branch (
+    BranchId INT PRIMARY KEY,
+    Name VARCHAR(100) NOT NULL,
+    Location VARCHAR(200)
+);
+
+CREATE TABLE Account (
+    AcctNo INT PRIMARY KEY,
+    CustomerId INT REFERENCES Customer(CustomerId),
+    BranchId INT REFERENCES Branch(BranchId),
+    Balance DECIMAL(10,2) DEFAULT 0,
+    Type VARCHAR(20) CHECK (Type IN ('Savings', 'Current', 'Fixed Deposit'))
+);
+
+CREATE TABLE Loan (
+    LoanId INT PRIMARY KEY,
+    CustomerId INT REFERENCES Customer(CustomerId),
+    BranchId INT REFERENCES Branch(BranchId),
+    Amount DECIMAL(12,2),
+    InterestRate DECIMAL(5,2),
+    StartDate DATE
+);
+
+CREATE TABLE Transaction (
+    TransactionId INT PRIMARY KEY,
+    AcctNo INT REFERENCES Account(AcctNo),
+    Amount DECIMAL(10,2),
+    Type VARCHAR(10) CHECK (Type IN ('Credit', 'Debit')),
+    Date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Create views
+CREATE VIEW CustomerAccounts AS
+SELECT c.CustomerId, c.Name, a.AcctNo, a.Balance
+FROM Customer c JOIN Account a ON c.CustomerId = a.CustomerId;
+
+CREATE VIEW BranchLoanSummary AS
+SELECT b.BranchId, b.Name, COUNT(l.LoanId) as TotalLoans, SUM(l.Amount) as TotalAmount
+FROM Branch b LEFT JOIN Loan l ON b.BranchId = l.BranchId
+GROUP BY b.BranchId, b.Name;
+
+-- 3. Create index
+CREATE INDEX CustomerId_Index ON Customer(Name ASC);
+
+-- 4. Create sequence
+CREATE SEQUENCE AcctNo_Seq START WITH 1000 INCREMENT BY 1;
+
+
+
+
+
+2: Draw an ER for Company database with atleast 4 entities and convert them into tables.
+Perform DDL on Above converted tables.
+1. Create tables with all constraints
+2. create views on any two tables using conditions
+3. create  index called EmployeeId  for the department table. Entries should be in ascending order by department id and then by  employee id within each department.
+4. create sequence on Employee id.
+
+
+-- 1. Create tables with constraints
+CREATE TABLE Department (
+    DeptId INT PRIMARY KEY,
+    Name VARCHAR(100) NOT NULL,
+    Location VARCHAR(100)
+);
+
+CREATE TABLE Employee (
+    EmployeeId INT PRIMARY KEY,
+    Name VARCHAR(100) NOT NULL,
+    DeptId INT REFERENCES Department(DeptId),
+    Salary DECIMAL(10,2) CHECK (Salary > 0),
+    JoinDate DATE
+);
+
+CREATE TABLE Project (
+    ProjectId INT PRIMARY KEY,
+    Name VARCHAR(100) NOT NULL,
+    DeptId INT REFERENCES Department(DeptId),
+    Budget DECIMAL(12,2),
+    StartDate DATE,
+    EndDate DATE
+);
+
+CREATE TABLE Dependent (
+    DependentId INT PRIMARY KEY,
+    EmployeeId INT REFERENCES Employee(EmployeeId),
+    Name VARCHAR(100) NOT NULL,
+    Relationship VARCHAR(50),
+    BirthDate DATE
+);
+
+-- 2. Create views
+CREATE VIEW EmployeeDepartment AS
+SELECT e.EmployeeId, e.Name, d.Name as DeptName
+FROM Employee e JOIN Department d ON e.DeptId = d.DeptId;
+
+CREATE VIEW ProjectBudgetSummary AS
+SELECT d.Name as DeptName, COUNT(p.ProjectId) as ProjectCount, SUM(p.Budget) as TotalBudget
+FROM Department d LEFT JOIN Project p ON d.DeptId = p.DeptId
+GROUP BY d.Name;
+
+-- 3. Create index
+CREATE INDEX EmployeeId_Index ON Department(DeptId ASC, EmployeeId ASC);
+
+-- 4. Create sequence
+CREATE SEQUENCE EmployeeId_Seq START WITH 100 INCREMENT BY 1;
+
+
+
+
+
+3: write a trigger for Library (bid, bname, doi, status) to update the number of copies (noc) according to ISSUE & RETURN status on update or insert query. Increase the noc if status is RETURN, Decrease noc if status is ISSUE in Library_Audit table(bid,bname,noc,timestampofquery). Write a trigger after update on Library such that if doi is more than 20 days ago then status should be FINE and in the Library_Audit table fine should be equal to no. of days * 10.
+
+
+CREATE OR REPLACE TRIGGER update_noc_trigger
+AFTER INSERT OR UPDATE ON Library
+FOR EACH ROW
+BEGIN
+    IF :NEW.status = 'RETURN' THEN
+        UPDATE Library_Audit 
+        SET noc = noc + 1,
+            timestampofquery = SYSTIMESTAMP
+        WHERE bid = :NEW.bid;
+    ELSIF :NEW.status = 'ISSUE' THEN
+        UPDATE Library_Audit 
+        SET noc = noc - 1,
+            timestampofquery = SYSTIMESTAMP
+        WHERE bid = :NEW.bid;
+    END IF;
+    
+    IF (SYSDATE - :NEW.doi) > 20 THEN
+        UPDATE Library SET status = 'FINE' WHERE bid = :NEW.bid;
+        UPDATE Library_Audit 
+        SET fine = (SYSDATE - :NEW.doi) * 10,
+            timestampofquery = SYSTIMESTAMP
+        WHERE bid = :NEW.bid;
+    END IF;
+END;
+/
+
+
+
+
+
+4: Write a database trigger on Library table. The System should keep track of the records that are being updated or deleted. The old value of updated or deleted records should be added in Library_Audit table. 
+
+
+CREATE OR REPLACE TRIGGER library_audit_trigger
+BEFORE UPDATE OR DELETE ON Library
+FOR EACH ROW
+BEGIN
+    INSERT INTO Library_Audit(bid, bname, noc, timestampofquery)
+    VALUES (:OLD.bid, :OLD.bname, :OLD.noc, SYSTIMESTAMP);
+END;
+/
+
+
+
+
+
+5: Create a collection sites(url,dateofaccess). Write a MapReduce function to find the no. of times a site was accessed in a month.
+
+
+// Map function
+function() {
+    var month = this.dateofaccess.getMonth() + 1;
+    var year = this.dateofaccess.getFullYear();
+    emit({url: this.url, month: month, year: year}, 1);
+}
+
+// Reduce function
+function(key, values) {
+    return Array.sum(values);
+}
+
+// Execute MapReduce
+db.sites.mapReduce(
+    mapFunction,
+    reduceFunction,
+    {
+        out: "monthly_site_access"
+    }
+)
+
+
+
+6: Create tables CitiesIndia(pincode,nameofcity,earliername,area,population,avgrainfall) 
+Categories(Type,pincode) Note:- Enter data only in CitiesIndia
+Write PL/SQL Procedure & function to find the population density of the cities. If the population density is above 3000 then Type of city must be entered as High Density in Category table. Between 2999 to 1000 as Moderate and below 999 as Low Density. Error must be displayed for population less than 10 or greater than 25718.
+
+
+CREATE OR REPLACE PROCEDURE update_city_density AS
+    CURSOR city_cursor IS 
+        SELECT pincode, nameofcity, population, area 
+        FROM CitiesIndia;
+    
+    v_density NUMBER;
+    v_type VARCHAR(20);
+    v_error VARCHAR(100);
+BEGIN
+    FOR city_rec IN city_cursor LOOP
+        IF city_rec.population < 10 OR city_rec.population > 25718 THEN
+            v_error := 'Invalid population for city: ' || city_rec.nameofcity;
+            DBMS_OUTPUT.PUT_LINE(v_error);
+        ELSE
+            v_density := city_rec.population / city_rec.area;
+            
+            IF v_density > 3000 THEN
+                v_type := 'High Density';
+            ELSIF v_density BETWEEN 1000 AND 2999 THEN
+                v_type := 'Moderate';
+            ELSE
+                v_type := 'Low Density';
+            END IF;
+            
+            -- Update or insert into Categories table
+            MERGE INTO Categories c
+            USING (SELECT city_rec.pincode as pincode FROM dual) src
+            ON (c.pincode = src.pincode)
+            WHEN MATCHED THEN
+                UPDATE SET c.Type = v_type
+            WHEN NOT MATCHED THEN
+                INSERT (Type, pincode) VALUES (v_type, src.pincode);
+        END IF;
+    END LOOP;
+    COMMIT;
+END;
+/
+
+
+
+7: Write PL/SQL Procedure & function to find class [Distinction (Total marks from 1499 to 990) ,First Class( 899 to 900) Higher Second (899 to 825) ,Second,Pass (824 to 750) ] of a student based on total marks from table Student (rollno, name, Marks1, Marks2, Marks3, Marks4, Marks5). 
+Use exception handling when negative marks are entered by user(Marks<0) or Marks more than 100 are entered by user.. Store the result into Result table recording  RollNo,total marks, and class for each student .
+
+
+CREATE OR REPLACE PROCEDURE calculate_student_grades AS
+    CURSOR student_cursor IS 
+        SELECT rollno, name, Marks1, Marks2, Marks3, Marks4, Marks5 
+        FROM Student;
+    
+    v_total NUMBER;
+    v_class VARCHAR(20);
+BEGIN
+    FOR student_rec IN student_cursor LOOP
+        -- Check for invalid marks
+        IF student_rec.Marks1 < 0 OR student_rec.Marks1 > 100 OR
+           student_rec.Marks2 < 0 OR student_rec.Marks2 > 100 OR
+           student_rec.Marks3 < 0 OR student_rec.Marks3 > 100 OR
+           student_rec.Marks4 < 0 OR student_rec.Marks4 > 100 OR
+           student_rec.Marks5 < 0 OR student_rec.Marks5 > 100 THEN
+            RAISE_APPLICATION_ERROR(-20001, 'Invalid marks for student: ' || student_rec.rollno);
+        END IF;
+        
+        -- Calculate total
+        v_total := student_rec.Marks1 + student_rec.Marks2 + student_rec.Marks3 + 
+                  student_rec.Marks4 + student_rec.Marks5;
+        
+        -- Determine class
+        IF v_total BETWEEN 990 AND 1499 THEN
+            v_class := 'Distinction';
+        ELSIF v_total BETWEEN 900 AND 989 THEN
+            v_class := 'First Class';
+        ELSIF v_total BETWEEN 825 AND 899 THEN
+            v_class := 'Higher Second';
+        ELSIF v_total BETWEEN 750 AND 824 THEN
+            v_class := 'Second';
+        ELSE
+            v_class := 'Pass';
+        END IF;
+        
+        -- Insert into Result table
+        INSERT INTO Result(RollNo, total_marks, class)
+        VALUES (student_rec.rollno, v_total, v_class);
+    END LOOP;
+    COMMIT;
+END;
+/
+
+
+
+8: Draw ER for Library database with atleast 5 entities and convert them into tables.
+Perform DDL on above converted tables.
+1. Create tables with all constraints (Based on ERD cardinalities)
+2. Create views on any two tables using join condition
+3. Create index called Lib_Index1. Entries should be in ascending order by Author name.
+4. Create sequence on Bookid.
+
+
+-- 1. Create tables with constraints
+CREATE TABLE Author (
+    AuthorId INT PRIMARY KEY,
+    Name VARCHAR(100) NOT NULL,
+    Nationality VARCHAR(50)
+);
+
+CREATE TABLE Publisher (
+    PublisherId INT PRIMARY KEY,
+    Name VARCHAR(100) NOT NULL,
+    Address VARCHAR(200)
+);
+
+CREATE TABLE Book (
+    BookId INT PRIMARY KEY,
+    Title VARCHAR(200) NOT NULL,
+    AuthorId INT REFERENCES Author(AuthorId),
+    PublisherId INT REFERENCES Publisher(PublisherId),
+    ISBN VARCHAR(20) UNIQUE,
+    PublishedYear INT
+);
+
+CREATE TABLE Member (
+    MemberId INT PRIMARY KEY,
+    Name VARCHAR(100) NOT NULL,
+    Address VARCHAR(200),
+    JoinDate DATE,
+    MembershipType VARCHAR(20) CHECK (MembershipType IN ('Regular', 'Premium'))
+);
+
+CREATE TABLE Loan (
+    LoanId INT PRIMARY KEY,
+    BookId INT REFERENCES Book(BookId),
+    MemberId INT REFERENCES Member(MemberId),
+    IssueDate DATE NOT NULL,
+    DueDate DATE NOT NULL,
+    ReturnDate DATE,
+    Status VARCHAR(10) CHECK (Status IN ('Issued', 'Returned', 'Overdue'))
+);
+
+-- 2. Create views
+CREATE VIEW BookAuthorView AS
+SELECT b.BookId, b.Title, a.Name as AuthorName, p.Name as PublisherName
+FROM Book b 
+JOIN Author a ON b.AuthorId = a.AuthorId
+JOIN Publisher p ON b.PublisherId = p.PublisherId;
+
+CREATE VIEW MemberLoanSummary AS
+SELECT m.MemberId, m.Name, COUNT(l.LoanId) as TotalLoans
+FROM Member m LEFT JOIN Loan l ON m.MemberId = l.MemberId
+GROUP BY m.MemberId, m.Name;
+
+-- 3. Create index
+CREATE INDEX Lib_Index1 ON Author(Name ASC);
+
+-- 4. Create sequence
+CREATE SEQUENCE BookId_Seq START WITH 1000 INCREMENT BY 1;
+
+
+
+9: PL/SQL code block: Use of Control structure and Exception handling is mandatory. Write a PL/SQL block of code for the following requirements:- 
+Schema: 
+1. Borrower(Rollin, Name, DateofIssue, NameofBook, Status) 
+2. Fine(Roll_no,Date,Amt) 
+3. Library (bid, bname, doi, status,noc)
+4. transaction (tid,bid, bname, status)
+1.	Accept roll_no & name of book from user. 
+2.	Check the number of days (from date of issue), if days are between 15 to 30 then fine amount will be Rs 5per day. 
+3.	If no. of days>30, per day fine will be Rs 50 per day & for days less than 30, Rs. 5 per day. 
+4.	After submitting the book, status will change from I to R.
+5.	Update the noc in library according to the transaction made.  Increase the noc if status is RETURN, Decrease noc if status is ISSUE.
+6.	If condition of fine is true, then details will be stored into fine table. 
+
+
+DECLARE
+    v_roll_no Borrower.Rollin%TYPE := &roll_no;
+    v_book_name Borrower.NameofBook%TYPE := '&book_name';
+    v_doi Borrower.DateofIssue%TYPE;
+    v_days NUMBER;
+    v_fine_amt NUMBER := 0;
+    v_status Borrower.Status%TYPE;
+BEGIN
+    -- Get date of issue and current status
+    SELECT DateofIssue, Status INTO v_doi, v_status
+    FROM Borrower
+    WHERE Rollin = v_roll_no AND NameofBook = v_book_name;
+    
+    -- Calculate days since issue
+    v_days := SYSDATE - v_doi;
+    
+    -- Calculate fine amount
+    IF v_days > 30 THEN
+        v_fine_amt := v_days * 50;
+    ELSIF v_days BETWEEN 15 AND 30 THEN
+        v_fine_amt := v_days * 5;
+    END IF;
+    
+    -- Update status to Returned
+    UPDATE Borrower SET Status = 'R' 
+    WHERE Rollin = v_roll_no AND NameofBook = v_book_name;
+    
+    -- Update noc in Library table
+    UPDATE Library SET noc = noc + 1, status = 'RETURN'
+    WHERE bname = v_book_name AND status = 'ISSUE';
+    
+    -- Insert fine record if applicable
+    IF v_fine_amt > 0 THEN
+        INSERT INTO Fine(Roll_no, Date, Amt)
+        VALUES (v_roll_no, SYSDATE, v_fine_amt);
+    END IF;
+    
+    COMMIT;
+    
+    DBMS_OUTPUT.PUT_LINE('Book return processed successfully.');
+    DBMS_OUTPUT.PUT_LINE('Fine Amount: ' || v_fine_amt);
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        DBMS_OUTPUT.PUT_LINE('No such book issued to this student.');
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
+        ROLLBACK;
+END;
+/
+
+
+
+10: Implement  SQL DDL statements which demonstrate the use of SQL objects such as Table, View, Index, Sequence, Synonym for following relational schema:
+
+Borrower(Rollin, Name, DateofIssue, NameofBook, Status)
+
+
+
+-- Table
+CREATE TABLE Borrower (
+    Rollin INT PRIMARY KEY,
+    Name VARCHAR(100) NOT NULL,
+    DateofIssue DATE,
+    NameofBook VARCHAR(200),
+    Status CHAR(1) CHECK (Status IN ('I', 'R'))
+);
+
+-- View
+CREATE VIEW ActiveLoans AS
+SELECT Rollin, Name, NameofBook, DateofIssue
+FROM Borrower
+WHERE Status = 'I';
+
+-- Index
+CREATE INDEX Borrower_Name_Idx ON Borrower(Name);
+
+-- Sequence
+CREATE SEQUENCE Borrower_Rollin_Seq START WITH 1001 INCREMENT BY 1;
+
+-- Synonym
+CREATE SYNONYM Brw FOR Borrower;
+
+
+
+11: Design at least 10 SQL queries for suitable database application using SQL DML statements: all types of Join, Sub-Query and View.
+
+
+-- 1. Simple SELECT
+SELECT * FROM Customer WHERE city = 'Pune';
+
+-- 2. INNER JOIN
+SELECT c.Name, a.AcctNo, a.Balance
+FROM Customer c INNER JOIN Account a ON c.CustomerId = a.CustomerId;
+
+-- 3. LEFT JOIN
+SELECT d.Name, COUNT(e.EmployeeId) as EmployeeCount
+FROM Department d LEFT JOIN Employee e ON d.DeptId = e.DeptId
+GROUP BY d.Name;
+
+-- 4. RIGHT JOIN
+SELECT p.Name, d.Name as DeptName
+FROM Project p RIGHT JOIN Department d ON p.DeptId = d.DeptId;
+
+-- 5. FULL OUTER JOIN
+SELECT b.Title, l.IssueDate, m.Name
+FROM Book b FULL OUTER JOIN Loan l ON b.BookId = l.BookId
+FULL OUTER JOIN Member m ON l.MemberId = m.MemberId;
+
+-- 6. Subquery in WHERE
+SELECT Name, Salary
+FROM Employee
+WHERE Salary > (SELECT AVG(Salary) FROM Employee);
+
+-- 7. Subquery in FROM
+SELECT dept.Name, emp_count.Count
+FROM Department dept
+JOIN (SELECT DeptId, COUNT(*) as Count FROM Employee GROUP BY DeptId) emp_count
+ON dept.DeptId = emp_count.DeptId;
+
+-- 8. Correlated subquery
+SELECT b.Title
+FROM Book b
+WHERE EXISTS (SELECT 1 FROM Loan l WHERE l.BookId = b.BookId AND l.ReturnDate IS NULL);
+
+-- 9. View usage
+SELECT * FROM ActiveLoans WHERE DateofIssue < ADD_MONTHS(SYSDATE, -1);
+
+-- 10. Set operations
+SELECT Name FROM Customer WHERE city = 'Mumbai'
+UNION
+SELECT Name FROM Borrower WHERE bname = 'Central';
+
+
+
+
+12: Implement Indexing and querying with MongoDB using following example.
+
+                        Students(stud_id, stud_name,stud_addr,stud_marks)
+
+
+// Create collection
+db.createCollection("Students");
+
+// Insert documents
+db.Students.insertMany([
+    {stud_id: 101, stud_name: "Rahul", stud_addr: "Pune", stud_marks: 85},
+    {stud_id: 102, stud_name: "Priya", stud_addr: "Mumbai", stud_marks: 92},
+    {stud_id: 103, stud_name: "Amit", stud_addr: "Delhi", stud_marks: 78}
+]);
+
+// Create index
+db.Students.createIndex({stud_id: 1});
+
+// Query with index
+db.Students.find({stud_id: 102}).explain("executionStats");
+
+// Compound index
+db.Students.createIndex({stud_addr: 1, stud_marks: -1});
+
+// Query using compound index
+db.Students.find({stud_addr: "Pune", stud_marks: {$gt: 80}});
+
+
+
+13: Create the instance of the COMPANY which consists of the following tables:
+EMPLOYEE(Fname, Minit, Lname, Ssn, Bdate, Address, Sex, Salary,  Dno)
+DEPARTEMENT(Dname, Dno, Mgr_ssn, Mgr_start_date)
+DEPT_LOCATIONS(Dnumber, Dlocation)
+PROJECT(Pname, Pnumber, Plocation, Dno)
+WORKS_ON(Essn, Pno, Hours)
+DEPENDENT(Essn, Dependent_name, Sex, Bdate, Relationship)
+
+Perform following queries
+1.	For every project located in ‘Stafford’, list the project number, the controlling department number, and the department manager’s last name,address, and birth date.
+2.	Make a list of all project numbers for projects that involve an employee whose last name is ‘Smith’, either as a worker or as a manager of the department that controls the project.
+3.	Retrieve all employees whose address is in Houston, Texas.
+4.	Show the resulting salaries if every employee working on the ‘ProductX’ project is given a 10 percent raise.
+
+
+
+-- 1. Projects in Stafford with manager info
+SELECT p.Pnumber, p.Dno, e.Lname, e.Address, e.Bdate
+FROM PROJECT p
+JOIN DEPARTEMENT d ON p.Dno = d.Dno
+JOIN EMPLOYEE e ON d.Mgr_ssn = e.Ssn
+WHERE p.Plocation = 'Stafford';
+
+-- 2. Projects involving Smith
+SELECT DISTINCT p.Pnumber
+FROM PROJECT p
+LEFT JOIN WORKS_ON w ON p.Pnumber = w.Pno
+LEFT JOIN EMPLOYEE e1 ON w.Essn = e1.Ssn
+LEFT JOIN DEPARTEMENT d ON p.Dno = d.Dno
+LEFT JOIN EMPLOYEE e2 ON d.Mgr_ssn = e2.Ssn
+WHERE e1.Lname = 'Smith' OR e2.Lname = 'Smith';
+
+-- 3. Employees in Houston
+SELECT Fname, Minit, Lname
+FROM EMPLOYEE
+WHERE Address LIKE '%Houston, TX%';
+
+-- 4. Salary raise for ProductX workers
+SELECT e.Fname, e.Lname, e.Salary as Current_Salary, 
+       e.Salary * 1.10 as Proposed_Salary
+FROM EMPLOYEE e
+JOIN WORKS_ON w ON e.Ssn = w.Essn
+JOIN PROJECT p ON w.Pno = p.Pnumber
+WHERE p.Pname = 'ProductX';
+
+
+
+14: Implement all SQL DML opeartions with  operators, functions, and set operator for given schema:
+Account(Acc_no, branch_name,balance)
+branch(branch_name,branch_city,assets)
+customer(cust_name,cust_street,cust_city)
+Depositor(cust_name,acc_no)
+Loan(loan_no,branch_name,amount)
+Borrower(cust_name,loan_no)
+
+Solve following query:
+1.	Find the average account balance at each branch
+2.	Find no. of depositors at each branch.
+3.	Find the branches where average account balance > 12000.
+4.	Find number of tuples in customer relation.
+
+
+
+-- a. Avg account balance at each branch
+SELECT branch_name, AVG(balance) FROM Account GROUP BY branch_name;
+
+-- b. No. of depositors at each branch
+SELECT a.branch_name, COUNT(*) 
+FROM Depositor d JOIN Account a ON d.acc_no = a.acc_no 
+GROUP BY a.branch_name;
+
+-- c. Branches with avg balance > 12000
+SELECT branch_name 
+FROM Account GROUP BY branch_name 
+HAVING AVG(balance) > 12000;
+
+-- d. Tuples in customer relation
+SELECT COUNT(*) FROM customer;
+
+
+
+15: Implement all SQL DML opeartions with  operators, functions, and set operator for given schema:
+
+Account(Acc_no, branch_name,balance)
+branch(branch_name,branch_city,assets)
+customer(cust_name,cust_street,cust_city)
+Depositor(cust_name,acc_no)
+Loan(loan_no,branch_name,amount)
+Borrower(cust_name,loan_no)
+
+Create above tables with appropriate constraints like primary key, foreign key, check constrains, not null etc.
+
+Solve following query:
+
+1.	Find the names of all branches in loan relation.
+2.	Find all loan numbers for loans made at Akurdi Branch with loan amount > 12000.
+3.	Find all customers who have a loan from bank. 
+4.	Find their names,loan_no and loan amount.
+
+
+-- Creating tables with constraints
+CREATE TABLE Account (
+    Acc_no INT PRIMARY KEY,
+    branch_name VARCHAR(50),
+    balance DECIMAL(10,2) CHECK (balance >= 0)
+);
+
+CREATE TABLE Branch (
+    branch_name VARCHAR(50) PRIMARY KEY,
+    branch_city VARCHAR(50),
+    assets DECIMAL(10,2)
+);
+
+CREATE TABLE Customer (
+    cust_name VARCHAR(50),
+    cust_street VARCHAR(50),
+    cust_city VARCHAR(50),
+    PRIMARY KEY (cust_name)
+);
+
+CREATE TABLE Depositor (
+    cust_name VARCHAR(50),
+    acc_no INT,
+    FOREIGN KEY (cust_name) REFERENCES Customer(cust_name),
+    FOREIGN KEY (acc_no) REFERENCES Account(Acc_no)
+);
+
+CREATE TABLE Loan (
+    loan_no INT PRIMARY KEY,
+    branch_name VARCHAR(50),
+    amount DECIMAL(10,2),
+    FOREIGN KEY (branch_name) REFERENCES Branch(branch_name)
+);
+
+CREATE TABLE Borrower (
+    cust_name VARCHAR(50),
+    loan_no INT,
+    FOREIGN KEY (cust_name) REFERENCES Customer(cust_name),
+    FOREIGN KEY (loan_no) REFERENCES Loan(loan_no)
+);
+
+-- Queries
+SELECT DISTINCT branch_name FROM Loan;
+
+SELECT loan_no FROM Loan
+WHERE branch_name = 'Akurdi' AND amount > 12000;
+
+SELECT c.cust_name, b.loan_no, l.amount
+FROM Customer c
+JOIN Borrower b ON c.cust_name = b.cust_name
+JOIN Loan l ON b.loan_no = l.loan_no;
+
+
+
+
+16: Implement Map reduce operation with following example using MongoDB
+Students(stud_id, stud_name,stud_addr,stud_marks) 
+
+// MongoDB MapReduce
+function map() {
+    emit(this.stud_id, this.stud_marks);
+}
+
+function reduce(key, values) {
+    return Array.sum(values);
+}
+
+db.Students.mapReduce(
+    map,
+    reduce,
+    {out: "student_totals"}
+);
+
+
+AND
+Write a PL/SQL code to calculate total and percentage of marks of the students in four subjects.
+
+-- PL/SQL for student marks
+DECLARE
+    CURSOR student_cur IS SELECT * FROM Students;
+    v_total NUMBER;
+    v_percentage NUMBER;
+BEGIN
+    FOR rec IN student_cur LOOP
+        v_total := rec.Marks1 + rec.Marks2 + rec.Marks3 + rec.Marks4;
+        v_percentage := (v_total / 400) * 100;
+        
+        DBMS_OUTPUT.PUT_LINE('Student: ' || rec.Name || 
+                            ', Total: ' || v_total || 
+                            ', Percentage: ' || v_percentage || '%');
+    END LOOP;
+END;
+/
+
+
+
+17: Create  following collection and  using MongoDB  implement all CRUD operations.
+                        Orders( cust_id, amount, status)
+
+
+
+// Create
+db.Orders.insertMany([
+    {cust_id: 101, amount: 1500, status: "Pending"},
+    {cust_id: 102, amount: 2300, status: "Completed"}
+]);
+
+// Read
+db.Orders.find({status: "Pending"});
+db.Orders.findOne({cust_id: 101});
+
+// Update
+db.Orders.updateOne(
+    {cust_id: 101},
+    {$set: {status: "Processing"}}
+);
+
+// Delete
+db.Orders.deleteOne({cust_id: 102});
+
+
+
+
+18: Implement all SQL DML operations with  operators, functions, and set operator for given schema:
+
+Account(Acc_no, branch_name,balance)
+branch(branch_name,branch_city,assets)
+customer(cust_name,cust_street,cust_city)
+Depositor(cust_name,acc_no)
+Loan(loan_no,branch_name,amount)
+Borrower(cust_name,loan_no)
+
+Create above tables with appropriate constraints like primary key, foreign key, check constrains, not null etc. Solve following query:
+
+1.	Find all customers who have an account or loan or both at bank.
+2.	Find all customers who have both account and loan at bank.
+3.	Find all customer who have account but no loan at the bank.
+4.	Find average account balance at Akurdi branch.
+
+
+
+-- Customers with account or loan
+SELECT cust_name FROM Depositor
+UNION
+SELECT cust_name FROM Borrower;
+
+-- Customers with both account and loan
+SELECT cust_name FROM Depositor
+INTERSECT
+SELECT cust_name FROM Borrower;
+
+-- Customers with account but no loan
+SELECT cust_name FROM Depositor
+MINUS
+SELECT cust_name FROM Borrower;
+
+-- Average account balance at Akurdi branch
+SELECT AVG(balance) FROM Account WHERE branch_name = 'Akurdi';
+
+
+
+19: Implement all SQL DML operations with  operators, functions, and set operator for given schema:
+
+Account(Acc_no, branch_name,balance)
+branch(branch_name,branch_city,assets)
+customer(cust_name,cust_street,cust_city)
+Depositor(cust_name,acc_no)
+Loan(loan_no,branch_name,amount)
+Borrower(cust_name,loan_no)
+
+Solve following query:
+
+1.	 Calculate total loan amount given by bank.
+2.	 Delete all loans with loan amount between 1300 and 1500.
+3.	Delete all tuples at every branch located in Nigdi.
+
+
+-- Total loan amount
+SELECT SUM(amount) FROM Loan;
+
+-- Delete loans between 1300 and 1500
+DELETE FROM Loan WHERE amount BETWEEN 1300 AND 1500;
+
+-- Delete all tuples from Nigdi branches
+DELETE FROM Branch WHERE branch_city = 'Nigdi';
+
+
+
+
+20: Create the following tables.
+1.	 Deposit (actno,cname,bname,amount,adate)
+2.	Branch (bname,city)
+3.	Customers (cname, city)
+4.	Borrow(loanno,cname,bname, amount)
+
+Add primary key and foreign key wherever applicable.Insert data into the above created tables.
+1.	Display account date of customers “ABC”.
+2.	Modify the size of attribute of amount in deposit
+3.	Display names of customers living in city pune.
+4.	Display  name of the city where branch “OBC” is located.
+5.	Find the number of tuples in the customer relation
+
+
+
+CREATE TABLE Deposit (
+    actno INT PRIMARY KEY,
+    cname VARCHAR(50),
+    bname VARCHAR(50),
+    amount DECIMAL(10,2),
+    adate DATE
+);
+
+CREATE TABLE Branch (
+    bname VARCHAR(50) PRIMARY KEY,
+    city VARCHAR(50)
+);
+
+CREATE TABLE Customers (
+    cname VARCHAR(50) PRIMARY KEY,
+    city VARCHAR(50)
+);
+
+CREATE TABLE Borrow (
+    loanno INT PRIMARY KEY,
+    cname VARCHAR(50),
+    bname VARCHAR(50),
+    amount DECIMAL(10,2)
+);
+
+-- Queries
+SELECT adate FROM Deposit WHERE cname = 'ABC';
+ALTER TABLE Deposit MODIFY amount DECIMAL(15,2);
+SELECT cname FROM Customers WHERE city = 'Pune';
+SELECT city FROM Branch WHERE bname = 'OBC';
+SELECT COUNT(*) FROM Customers;
+
+
+
+
+21: Create following tables:
+6.	 Deposit (actno,cname,bname,amount,adate)
+7.	Branch (bname,city)
+8.	Customers (cname, city)
+9.	Borrow(loanno,cname,bname, amount)
+
+Add primary key and foreign key wherever applicable. Insert data into the above created tables.
+1.	Display customer name having living city Bombay and branch city Nagpur
+2.	Display customer name having same living city as their branch city
+3.	Display customer name who are borrowers as well as depositors and having living city Nagpur.
+
+
+
+-- Customers in Bombay with branch in Nagpur
+SELECT c.cname
+FROM Customers c
+JOIN Deposit d ON c.cname = d.cname
+JOIN Branch b ON d.bname = b.bname
+WHERE c.city = 'Bombay' AND b.city = 'Nagpur';
+
+-- Same city as branch
+SELECT c.cname
+FROM Customers c
+JOIN Deposit d ON c.cname = d.cname
+JOIN Branch b ON d.bname = b.bname
+WHERE c.city = b.city;
+
+-- Borrowers and depositors in Nagpur
+SELECT c.cname
+FROM Customers c
+JOIN Deposit d ON c.cname = d.cname
+JOIN Borrow b ON c.cname = b.cname
+WHERE c.city = 'Nagpur';
+
+
+
+22: Create the following tables.
+4.	 Deposit (actno,cname,bname,amount,adate)
+5.	Branch (bname,city)
+6.	Customers (cname, city)
+7.	Borrow(loanno,cname,bname, amount)
+Add primary key and foreign key wherever applicable.
+Insert data into the above created tables.
+1.	Display loan no and loan amount of borrowers having the same branch as that of sunil. 
+2.	Display deposit and loan details of customers in the city where pramod is living. 
+3.	Display borrower names having deposit amount greater than 1000 and having the same living city as pramod.
+4.	Display branch and  living city of ‘ABC’
+
+
+
+-- Loan no and amount for borrowers at same branch as Sunil
+SELECT b.loanno, b.amount
+FROM Borrow b
+JOIN Customers c ON b.cname = c.cname
+WHERE b.bname = (
+    SELECT bname FROM Borrow WHERE cname = 'Sunil'
+);
+
+-- Deposit and loan details of Pramod's city
+SELECT * FROM Deposit
+WHERE cname IN (
+    SELECT cname FROM Customers WHERE city = (
+        SELECT city FROM Customers WHERE cname = 'Pramod'
+    )
+);
+
+-- Borrowers with deposits >1000 in same city as Pramod
+SELECT b.cname
+FROM Borrow b
+JOIN Deposit d ON b.cname = d.cname
+JOIN Customers c ON c.cname = b.cname
+WHERE d.amount > 1000 AND c.city = (
+    SELECT city FROM Customers WHERE cname = 'Pramod'
+);
+
+-- Branch and city of ‘ABC’
+SELECT bname, city
+FROM Customers
+JOIN Branch ON Customers.city = Branch.city
+WHERE cname = 'ABC';
+
+
+
+
+23: Implement all Aggregation operations and types of indexing with following collection using MongoDB. 
+Employee(emp_id, emp_name,emp_dept,salary)
+
+
+
+// Indexes
+db.Employee.createIndex({ emp_id: 1 });
+db.Employee.createIndex({ emp_dept: 1, salary: -1 });
+
+// Aggregation examples
+db.Employee.aggregate([
+  { $group: { _id: "$emp_dept", total: { $sum: "$salary" } } }
+]);
+
+db.Employee.aggregate([
+  { $match: { salary: { $gt: 50000 } } },
+  { $project: { emp_name: 1, salary: 1 } }
+]);
+
+
+
+24: Create the following tables.
+5.	 Deposit (actno,cname,bname,amount,adate)
+6.	Branch (bname,city)
+7.	Customers (cname, city)
+8.	Borrow(loanno,cname,bname, amount)
+Add primary key and foreign key wherever applicable. Insert data into the above created tables.
+1.	Display amount for depositors living in the city where Anil is living.
+2.	Display total loan and  maximum loan taken from KAROLBAGH branch.
+3.	Display total deposit of customers having account date later than ‘1-jan-98’.
+4.	Display maximum deposit of customers living in PUNE.
+
+
+
+-- Deposit amounts where city = Anil’s city
+SELECT amount FROM Deposit
+WHERE cname IN (
+    SELECT cname FROM Customers WHERE city = (
+        SELECT city FROM Customers WHERE cname = 'Anil'
+    )
+);
+
+-- Total and max loan from KAROLBAGH
+SELECT SUM(amount), MAX(amount)
+FROM Borrow
+WHERE bname = 'KAROLBAGH';
+
+-- Total deposit after Jan 1, 1998
+SELECT SUM(amount)
+FROM Deposit
+WHERE adate > TO_DATE('01-JAN-1998', 'DD-MON-YYYY');
+
+-- Max deposit from Pune
+SELECT MAX(amount)
+FROM Deposit
+WHERE cname IN (
+    SELECT cname FROM Customers WHERE city = 'PUNE'
+);
+
+
+
+
+25: Design and Implement any 5 query using MongoDB
+1.	Create a collection called ‘games’.
+2.	Add 5 games to the database. Give each document the following properties: name, gametype, score (out of 100), achievements
+3.	Write a query that returns all the games
+4.	Write a query that returns the 3 highest scored games.
+5.	Write a query that returns all the games that have both the ‘Game Maser’ and
+the ‘Speed Demon’ achievements.
+
+
+
+// Create collection and insert games
+db.games.insertMany([
+    {
+        name: "Adventure Quest",
+        gametype: "RPG",
+        score: 92,
+        achievements: ["Game Master", "Speed Demon", "Explorer"]
+    },
+    {
+        name: "Racing Pro",
+        gametype: "Racing",
+        score: 88,
+        achievements: ["Speed Demon", "Perfect Lap"]
+    },
+    {
+        name: "Puzzle Master",
+        gametype: "Puzzle",
+        score: 95,
+        achievements: ["Quick Thinker", "Game Master"]
+    },
+    {
+        name: "Shooter Elite",
+        gametype: "FPS",
+        score: 90,
+        achievements: ["Sharpshooter", "Survivor"]
+    },
+    {
+        name: "Sports Champion",
+        gametype: "Sports",
+        score: 85,
+        achievements: ["MVP", "Speed Demon"]
+    }
+]);
+
+// Query all games
+db.games.find();
+
+// Top 3 highest scored games
+db.games.find().sort({score: -1}).limit(3);
+
+// Games with both achievements
+db.games.find({
+    achievements: {$all: ["Game Master", "Speed Demon"]}
+});
+
+
+
+
+26: Write a PL/SQL code to calculate tax for an employee of an organization ABC and to display his/her name & tax, by creating a table under employee database as below:
+Employee_salary(emp_no,basic,HRA,DA,Total_deduction,net_salary,gross_Salary)
+
+
+
+CREATE OR REPLACE PROCEDURE calculate_employee_tax AS
+    CURSOR emp_cur IS 
+        SELECT emp_no, basic, HRA, DA, Total_deduction, gross_Salary 
+        FROM Employee_salary;
+    
+    v_tax NUMBER;
+    v_name VARCHAR(100);
+BEGIN
+    FOR emp_rec IN emp_cur LOOP
+        -- Calculate tax based on gross salary
+        IF emp_rec.gross_Salary > 1000000 THEN
+            v_tax := emp_rec.gross_Salary * 0.30;
+        ELSIF emp_rec.gross_Salary > 500000 THEN
+            v_tax := emp_rec.gross_Salary * 0.20;
+        ELSE
+            v_tax := emp_rec.gross_Salary * 0.10;
+        END IF;
+        
+        -- Get employee name (assuming there's an Employee table)
+        SELECT Name INTO v_name FROM Employee WHERE emp_no = emp_rec.emp_no;
+        
+        -- Display result
+        DBMS_OUTPUT.PUT_LINE('Employee: ' || v_name || ', Tax: ' || v_tax);
+    END LOOP;
+END;
+/
+
+
+
+27: Create PL/SQL code block: Write a PL/SQL block of code for the following schema: 
+ Borrower(Rollin, Name, DateofIssue, NameofBook, Status) 
+ Fine(Roll_no,Date,Amt) 
+
+Solve following queries:
+1.	Accept roll_no & name of book from user. 
+2.	Check the number of days (from date of issue), if days are between 15 to 30 then fine amount will be Rs 5per day. 
+3.	If no. of days>30, per day fine will be Rs 50 per day & for days less than 30, Rs. 5 per day. 
+4.	After submitting the book, status will change from I to R. 
+5.	If condition of fine is true, then details will be stored into fine table. 
+
+Use of Control structure and Exception handling is mandatory.
+
+
+-- 27. Library Fine Procedure
+CREATE OR REPLACE PROCEDURE process_book_return(
+    p_roll_no IN Borrower.Rollin%TYPE,
+    p_book_name IN Borrower.NameofBook%TYPE
+) AS
+    v_doi Borrower.DateofIssue%TYPE;
+    v_days NUMBER;
+    v_fine_amt NUMBER := 0;
+BEGIN
+    -- Get date of issue
+    SELECT DateofIssue INTO v_doi
+    FROM Borrower
+    WHERE Rollin = p_roll_no AND NameofBook = p_book_name;
+    
+    -- Calculate days since issue
+    v_days := SYSDATE - v_doi;
+    
+    -- Calculate fine
+    IF v_days > 30 THEN
+        v_fine_amt := v_days * 50;
+    ELSIF v_days BETWEEN 15 AND 30 THEN
+        v_fine_amt := v_days * 5;
+    END IF;
+    
+    -- Update status
+    UPDATE Borrower SET Status = 'R' 
+    WHERE Rollin = p_roll_no AND NameofBook = p_book_name;
+    
+    -- Insert fine if applicable
+    IF v_fine_amt > 0 THEN
+        INSERT INTO Fine(Roll_no, Date, Amt)
+        VALUES (p_roll_no, SYSDATE, v_fine_amt);
+    END IF;
+    
+    COMMIT;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Book not issued to this student');
+    WHEN OTHERS THEN
+        ROLLBACK;
+        RAISE;
+END;
+/
+
+
+28: Write a PL/SQL block of code using parameterized Cursor, that will merge the data available in the newly created table N_RollCall with the data available in the table O_RollCall. If the data in the first table already exist in the second table then that data should be skipped. 
+
+
+-- 28. Roll Call Merge Procedure
+CREATE OR REPLACE PROCEDURE merge_roll_call AS
+    CURSOR new_roll_cur IS SELECT * FROM N_RollCall;
+BEGIN
+    FOR rec IN new_roll_cur LOOP
+        BEGIN
+            -- Try to insert, ignore if already exists
+            INSERT INTO O_RollCall
+            VALUES (rec.roll_no, rec.name, rec.course, rec.attendance);
+        EXCEPTION
+            WHEN DUP_VAL_ON_INDEX THEN
+                NULL; -- Skip duplicate
+        END;
+    END LOOP;
+    COMMIT;
+END;
+/
+
+
+
+29: Writ a PL/SQL procedure to find the number of students ranging from 100-70%, 69-60%, 59-50% & below 49% in each course from the student_course table given by the procedure as parameter.
+Schema: Student (ROLL_NO ,COURSE, COURSE_COD ,SEM ,TOTAL_MARKS, PERCENTAGE)
+
+
+-- 29. Student Percentage Ranges
+CREATE OR REPLACE PROCEDURE student_percentage_ranges(
+    p_course IN Student.COURSE%TYPE
+) AS
+    v_range1 NUMBER := 0;
+    v_range2 NUMBER := 0;
+    v_range3 NUMBER := 0;
+    v_range4 NUMBER := 0;
+BEGIN
+    -- Count students in each range
+    SELECT COUNT(*) INTO v_range1
+    FROM Student
+    WHERE COURSE = p_course AND PERCENTAGE BETWEEN 70 AND 100;
+    
+    SELECT COUNT(*) INTO v_range2
+    FROM Student
+    WHERE COURSE = p_course AND PERCENTAGE BETWEEN 60 AND 69;
+    
+    SELECT COUNT(*) INTO v_range3
+    FROM Student
+    WHERE COURSE = p_course AND PERCENTAGE BETWEEN 50 AND 59;
+    
+    SELECT COUNT(*) INTO v_range4
+    FROM Student
+    WHERE COURSE = p_course AND PERCENTAGE < 50;
+    
+    -- Display results
+    DBMS_OUTPUT.PUT_LINE('Course: ' || p_course);
+    DBMS_OUTPUT.PUT_LINE('70-100%: ' || v_range1);
+    DBMS_OUTPUT.PUT_LINE('60-69%: ' || v_range2);
+    DBMS_OUTPUT.PUT_LINE('50-59%: ' || v_range3);
+    DBMS_OUTPUT.PUT_LINE('Below 50%: ' || v_range4);
+END;
+/
+
+
+
+30: Write a Stored Procedure namely proc_Grade for the categorization of student. If marks scored by students in examination is <=1500 and marks>=990 then student will be placed in distinction category if marks scored are between 989 and900 category is first class, if marks 899 and 825 category is Higher Second Class .
+
+Consider Schema as Stud_Marks(name, total_marks) and Result(Roll,Name, Class) 
+
+
+-- 30. Student Categorization
+CREATE OR REPLACE PROCEDURE proc_Grade AS
+    CURSOR stud_cur IS SELECT name, total_marks FROM Stud_Marks;
+    v_class VARCHAR(20);
+BEGIN
+    FOR rec IN stud_cur LOOP
+        IF rec.total_marks BETWEEN 990 AND 1500 THEN
+            v_class := 'Distinction';
+        ELSIF rec.total_marks BETWEEN 900 AND 989 THEN
+            v_class := 'First Class';
+        ELSIF rec.total_marks BETWEEN 825 AND 899 THEN
+            v_class := 'Higher Second Class';
+        ELSE
+            v_class := 'Second Class';
+        END IF;
+        
+        INSERT INTO Result(Roll, Name, Class)
+        VALUES (rec.roll_no, rec.name, v_class);
+    END LOOP;
+    COMMIT;
+END;
+/
+
+
+
+31: Create database  :Citydetails(_id,name,area,population(total,Adults,seniorcitizens,sexratio), geography(avgtemp, avgrainfall, longitude, latitude))
+
+1. Find the total population in pune.
+2.  returns all city with total population greater than 10 million
+3. returns the average populations for each city.
+4.  returns the minimum and maximum cities by population for each city.
+
+
+
+// Total population in Pune
+db.Citydetails.aggregate([
+  { $match: { name: "Pune" } },
+  { $group: { _id: "$name", total: { $sum: "$population.total" } } }
+]);
+
+// Cities with population > 10M
+db.Citydetails.find({ "population.total": { $gt: 10000000 } });
+
+// Avg population per city
+db.Citydetails.aggregate([
+  { $group: { _id: "$name", avgPop: { $avg: "$population.total" } } }
+]);
+
+// Min & Max population
+db.Citydetails.aggregate([
+  { $group: {
+      _id: null,
+      minPop: { $min: "$population.total" },
+      maxPop: { $max: "$population.total" }
+  }}
+]);
+
+
+
+32: Create database  :Citydetails(_id,name,area,population(total,Adults,seniorcitizens,sexratio), geography (avgtemp, avgrainfall, longitude, latitude))
+
+
+1.	Find area wise total population and sort them in increasing order.
+2.	Retrieve name and area where average rain fall is greater than 60
+3.	Create index on city and area find the max population in Mumbai
+4.	Create index on name.
+
+
+// Area-wise total population
+db.Citydetails.aggregate([
+  { $group: { _id: "$area", totalPop: { $sum: "$population.total" } } },
+  { $sort: { totalPop: 1 } }
+]);
+
+// Cities with avg rainfall > 60
+db.Citydetails.find({ "geography.avgrainfall": { $gt: 60 } }, { name: 1, area: 1 });
+
+// Indexes
+db.Citydetails.createIndex({ name: 1 });
+db.Citydetails.createIndex({ area: 1 });
+
+// Max population in Mumbai
+db.Citydetails.find({ name: "Mumbai" }).sort({ "population.total": -1 }).limit(1);
+
