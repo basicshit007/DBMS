@@ -1,0 +1,25 @@
+mysql -u root -p
+
+
+CREATE DATABASE my_database;
+
+
+SHOW DATABASES;
+
+
+USE my_database;
+
+
+SHOW TABLES;
+
+
+SELECT * FROM table_name;
+
+
+DESCRIBE table_name;
+
+
+SELECT column1, column2 FROM table_name;
+
+
+DROP VIEW IF EXISTS <name>;
