@@ -1,0 +1,39 @@
+-- Insert data into Customer
+INSERT INTO Customer (CustomerName, Address, Phone, Email) VALUES
+('Rahul Sharma', 'Delhi, India', '9876543210', 'rahul.sharma@example.com'),
+('Priya Verma', 'Mumbai, India', '9898989898', 'priya.verma@example.com'),
+('Amit Singh', 'Bangalore, India', '9123456789', 'amit.singh@example.com'),
+('Neha Patel', 'Ahmedabad, India', '9090909090', 'neha.patel@example.com'),
+('Arjun Reddy', 'Hyderabad, India', '9012345678', 'arjun.reddy@example.com');
+
+-- Insert data into Branch
+INSERT INTO Branch (BranchName, Location) VALUES
+('Connaught Place Branch', 'Delhi'),
+('Andheri Branch', 'Mumbai'),
+('MG Road Branch', 'Bangalore'),
+('Navrangpura Branch', 'Ahmedabad'),
+('Banjara Hills Branch', 'Hyderabad');
+
+-- Insert data into Account
+INSERT INTO Account (CustomerId, BranchId, AccountType, Balance) VALUES
+(1, 1, 'Savings', 55000.00),
+(2, 2, 'Current', 120000.00),
+(3, 3, 'Savings', 75000.00),
+(4, 4, 'Savings', 30000.00),
+(5, 5, 'Current', 95000.00);
+
+-- Insert data into Loan
+INSERT INTO Loan (CustomerId, BranchId, Amount, LoanType) VALUES
+(1, 1, 250000.00, 'Home Loan'),
+(2, 2, 500000.00, 'Car Loan'),
+(3, 3, 150000.00, 'Education Loan'),
+(4, 4, 200000.00, 'Personal Loan'),
+(5, 5, 350000.00, 'Home Loan');
+
+-- Insert data into TransactionTbl
+INSERT INTO TransactionTbl (AcctNo, TransDate, Amount, TransType) VALUES
+(1, '2025-05-01', 10000.00, 'credit'),
+(1, '2025-05-03', 2000.00, 'debit'),
+(2, '2025-05-02', 50000.00, 'credit'),
+(3, '2025-05-04', 7000.00, 'debit'),
+(5, '2025-05-05', 12000.00, 'credit');
