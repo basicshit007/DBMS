@@ -7,59 +7,71 @@ Perform DDL on above converted tables.
 
 
 -- 1. Create tables with constraints
+-- Customer Table
 CREATE TABLE Customer (
-    CustomerId INT PRIMARY KEY,
-    Name VARCHAR(100) NOT NULL,
+    CustomerId INT PRIMARY KEY AUTO_INCREMENT,
+    CustomerName VARCHAR(100) NOT NULL,
     Address VARCHAR(200),
-    Phone VARCHAR(15) UNIQUE
+    Phone VARCHAR(15) UNIQUE,
+    Email VARCHAR(100) UNIQUE
 );
 
+-- Branch Table
 CREATE TABLE Branch (
-    BranchId INT PRIMARY KEY,
-    Name VARCHAR(100) NOT NULL,
-    Location VARCHAR(200)
+    BranchId INT PRIMARY KEY AUTO_INCREMENT,
+    BranchName VARCHAR(100) NOT NULL,
+    Location VARCHAR(100)
 );
 
+-- Account Table
 CREATE TABLE Account (
-    AcctNo INT PRIMARY KEY,
-    CustomerId INT REFERENCES Customer(CustomerId),
-    BranchId INT REFERENCES Branch(BranchId),
-    Balance DECIMAL(10,2) DEFAULT 0,
-    Type VARCHAR(20) CHECK (Type IN ('Savings', 'Current', 'Fixed Deposit'))
+    AcctNo INT PRIMARY KEY AUTO_INCREMENT,
+    CustomerId INT,
+    BranchId INT,
+    AccountType VARCHAR(20),
+    Balance DECIMAL(12,2) DEFAULT 0,
+    FOREIGN KEY (CustomerId) REFERENCES Customer(CustomerId),
+    FOREIGN KEY (BranchId) REFERENCES Branch(BranchId)
 );
 
+-- Loan Table
 CREATE TABLE Loan (
-    LoanId INT PRIMARY KEY,
-    CustomerId INT REFERENCES Customer(CustomerId),
-    BranchId INT REFERENCES Branch(BranchId),
+    LoanId INT PRIMARY KEY AUTO_INCREMENT,
+    CustomerId INT,
+    BranchId INT,
     Amount DECIMAL(12,2),
-    InterestRate DECIMAL(5,2),
-    StartDate DATE
+    LoanType VARCHAR(50),
+    FOREIGN KEY (CustomerId) REFERENCES Customer(CustomerId),
+    FOREIGN KEY (BranchId) REFERENCES Branch(BranchId)
 );
 
-CREATE TABLE Transaction (
-    TransactionId INT PRIMARY KEY,
-    AcctNo INT REFERENCES Account(AcctNo),
-    Amount DECIMAL(10,2),
-    Type VARCHAR(10) CHECK (Type IN ('Credit', 'Debit')),
-    Date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- Transaction Table
+CREATE TABLE TransactionTbl (
+    TransactionId INT PRIMARY KEY AUTO_INCREMENT,
+    AcctNo INT,
+    TransDate DATE,
+    Amount DECIMAL(12,2),
+    TransType ENUM('credit', 'debit'),
+    FOREIGN KEY (AcctNo) REFERENCES Account(AcctNo)
 );
+
 
 -- 2. Create views
-CREATE VIEW CustomerAccounts AS
-SELECT c.CustomerId, c.Name, a.AcctNo, a.Balance
-FROM Customer c JOIN Account a ON c.CustomerId = a.CustomerId;
+CREATE VIEW CustomerAccountView AS
+SELECT c.CustomerId, c.CustomerName, a.AcctNo, a.AccountType, a.Balance
+FROM Customer c
+JOIN Account a ON c.CustomerId = a.CustomerId;
 
-CREATE VIEW BranchLoanSummary AS
-SELECT b.BranchId, b.Name, COUNT(l.LoanId) as TotalLoans, SUM(l.Amount) as TotalAmount
-FROM Branch b LEFT JOIN Loan l ON b.BranchId = l.BranchId
-GROUP BY b.BranchId, b.Name;
+CREATE VIEW LoanBranchView AS
+SELECT l.LoanId, l.CustomerId, l.Amount, l.LoanType, b.BranchName
+FROM Loan l
+JOIN Branch b ON l.BranchId = b.BranchId;
+
 
 -- 3. Create index
 CREATE INDEX CustomerId_Index ON Customer(Name ASC);
 
 -- 4. Create sequence
-CREATE SEQUENCE AcctNo_Seq START WITH 1000 INCREMENT BY 1;
 
 
 
